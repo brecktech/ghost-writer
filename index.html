@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>GHOST WRITER</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:linear-gradient(160deg,#1a0a3e 0%,#2d1b69 40%,#3b1f8e 100%);font-family:'Fredoka','Nunito',sans-serif;color:#F0ECF7;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:16px 12px 40px}
+input,textarea,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.25)}
+button{cursor:pointer}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.card{width:100%;max-width:420px;background:rgba(60,30,120,0.4);backdrop-filter:blur(16px);border-radius:24px;padding:28px 22px;border:1px solid rgba(180,130,255,0.15);animation:fadeIn .3s ease;box-shadow:0 8px 32px rgba(30,10,80,0.4)}
+.logo{font-size:44px;font-weight:800;background:linear-gradient(135deg,#FF6BD6,#FFD93D,#6BFFB8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;letter-spacing:-1px;text-align:center}
+.tagline{margin:6px 0 0;font-size:14px;color:rgba(255,255,255,0.45);text-align:center}
+.input{width:100%;background:rgba(80,40,140,0.35);border:1px solid rgba(180,130,255,0.2);border-radius:14px;padding:14px 16px;font-size:16px;color:#F0ECF7;outline:none}
+.btn-primary{width:100%;padding:14px 0;border-radius:16px;border:none;background:linear-gradient(135deg,#A855F7,#EC4899);color:#fff;font-size:17px;font-weight:700;letter-spacing:.3px;box-shadow:0 4px 15px rgba(168,85,247,0.4)}
+.btn-secondary{width:100%;padding:12px 0;border-radius:14px;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.12);color:#E0D0FF;font-size:15px;font-weight:600}
+.divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+.divider-line{flex:1;height:1px;background:rgba(255,255,255,0.1)}
+.divider-text{font-size:13px;color:rgba(255,255,255,0.3);font-weight:600}
+.error{margin-top:12px;padding:10px 14px;border-radius:12px;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#F87171;font-size:13px;font-weight:600;text-align:center}
+.conn-dot{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px}
+.conn-dot .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.conn-dot span:last-child{font-size:11px;color:rgba(255,255,255,0.35)}
+.code-display{text-align:center;margin-bottom:20px;background:rgba(80,40,140,0.3);border-radius:16px;padding:16px}
+.code-label{display:block;font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
+.code-value{font-size:36px;font-weight:800;letter-spacing:8px;color:#FFD93D}
+.label{display:block;font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.player-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:rgba(80,40,140,0.3);border:1px solid rgba(180,130,255,0.12);margin-bottom:6px}
+.player-row .name{flex:1;font-size:15px;font-weight:600}
+.player-row .status{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.online{color:#34D399}.offline{color:#F87171}
+.drag-row{cursor:grab;user-select:none;-webkit-user-select:none;transition:all .15s}
+.drag-row.dragging{opacity:0.5;background:rgba(255,255,255,0.12)!important}
+.drag-row.over{background:rgba(168,85,247,0.25)!important;border:1px dashed #A855F7!important}
+.drag-handle{font-size:18px;opacity:0.4}
+.waiting-msg{text-align:center;padding:20px 0}
+.waiting-dots{display:flex;justify-content:center;gap:6px;margin-bottom:12px}
+.waiting-dots span{width:8px;height:8px;border-radius:50%;background:#A855F7;animation:pulse 1.2s infinite}
+.header{width:100%;max-width:420px;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.round-badge{background:rgba(168,85,247,0.2);border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;color:#D8B4FE}
+.code-badge{background:rgba(168,85,247,0.15);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;color:rgba(216,180,254,0.5);letter-spacing:1px;flex:1}
+.score-btn{background:rgba(168,85,247,0.2);border:none;border-radius:20px;padding:6px 12px;font-size:14px}
+.phase-label{font-size:18px;font-weight:700;color:#FFD93D;margin-bottom:4px;text-align:center}
+.heading{font-size:22px;font-weight:800;margin:0 0 12px;text-align:center}
+.subtext{font-size:13px;color:rgba(255,255,255,0.45);text-align:center;margin:0 0 16px}
+.prompt-prefix{font-size:20px;font-weight:800;color:#D8B4FE;margin-bottom:4px}
+.textarea{width:100%;background:rgba(80,40,140,0.35);border:1px solid rgba(180,130,255,0.2);border-radius:14px;padding:12px 16px;font-size:16px;color:#F0ECF7;outline:none;resize:none;margin-bottom:14px}
+.prompt-display{background:rgba(168,85,247,0.15);border-radius:14px;padding:14px 16px;margin-bottom:16px;font-size:16px;font-weight:600;line-height:1.5;border-left:3px solid #A855F7}
+.prompt-display-label{display:block;font-size:13px;font-weight:800;color:#D8B4FE;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.response-card{display:flex;align-items:flex-start;gap:10px;background:rgba(80,40,140,0.3);border:1px solid rgba(180,130,255,0.15);border-radius:14px;padding:14px 16px;text-align:left;font-size:15px;color:#F0ECF7;width:100%;margin-bottom:8px}
+.response-card-sm{display:flex;align-items:center;gap:8px;background:rgba(80,40,140,0.3);border:1px solid rgba(180,130,255,0.15);border-radius:12px;padding:10px 14px;text-align:left;font-size:14px;color:#F0ECF7;width:100%;margin-bottom:6px}
+.response-card.selected,.response-card-sm.selected{background:rgba(236,72,153,0.25);border-color:#EC4899}
+.response-num{min-width:28px;height:28px;border-radius:50%;background:rgba(168,85,247,0.25);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.player-guess-btn{padding:10px 16px;border-radius:12px;border:1px solid rgba(180,130,255,0.2);background:rgba(80,40,140,0.3);color:#F0ECF7;font-size:14px;font-weight:600}
+.player-guess-btn.active{background:linear-gradient(135deg,#A855F7,#EC4899);border-color:#EC4899;color:#fff}
+.status-chip{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;display:inline-block}
+.status-done{background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34D399}
+.status-waiting{background:rgba(80,40,140,0.3);border:1px solid rgba(180,130,255,0.15);color:rgba(216,180,254,0.5)}
+.reveal-row{background:rgba(80,40,140,0.3);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.reveal-text{display:block;font-size:15px;font-weight:500;margin-bottom:4px}
+.reveal-name{font-size:13px;color:#D8B4FE;font-weight:600}
+.winner-name{text-align:center;font-size:32px;font-weight:800;background:linear-gradient(135deg,#FFD93D,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:4px 0}
+.winner-score{text-align:center;font-size:16px;color:rgba(255,255,255,0.5);margin-bottom:8px}
+.score-row{display:flex;align-items:center;padding:10px 12px;border-radius:10px;margin-bottom:4px}
+.score-row.first{background:rgba(255,217,61,0.15)}
+.score-rank{width:36px;font-size:16px;font-weight:700;text-align:center}
+.score-name{flex:1;font-size:15px;font-weight:600}
+.score-val{font-size:18px;font-weight:800;color:#FFD93D}
+.matched-chip{padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600;background:rgba(52,211,153,0.1);color:#34D399;border:1px solid rgba(52,211,153,0.2);display:inline-block;margin:2px}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:16px;color:#fff;font-size:15px;font-weight:700;z-index:998;animation:toastIn .3s ease;box-shadow:0 8px 30px rgba(0,0,0,0.3);max-width:90vw;text-align:center}
+.toast-correct{background:linear-gradient(135deg,#34D399,#059669)}
+.toast-wrong{background:linear-gradient(135deg,#F87171,#DC2626)}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:999}
+.confetti-particle{position:absolute;top:-10px}
+.hidden{display:none!important}
+.disabled{opacity:0.4;pointer-events:none}
+.kick-btn{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#F87171;border-radius:8px;padding:4px 8px;font-size:13px;font-weight:700;flex-shrink:0;margin-left:4px}
+.btn-leave{width:100%;padding:10px 0;border-radius:12px;border:1px solid rgba(248,113,113,0.25);background:rgba(248,113,113,0.08);color:#F87171;font-size:14px;font-weight:600;margin-top:12px}
+</style>
+</head>
+<body>
+<div id="toast" class="toast hidden"></div>
+<div id="confetti" class="confetti hidden"></div>
+<div id="screen-home" class="card">
+  <div style="text-align:center;margin-bottom:24px">
+    <h1 class="logo">GHOST WRITER</h1>
+    <p class="tagline">The hilarious guessing game by BreckTech</p>
+  </div>
+  <input id="name-input" class="input" placeholder="Your name" maxlength="20">
+  <button class="btn-primary" style="margin-top:12px" id="btn-create">Create Lobby</button>
+  <div class="divider">
+    <span class="divider-line"></span>
+    <span class="divider-text">or join with code</span>
+    <span class="divider-line"></span>
+  </div>
+  <input id="code-input" class="input" placeholder="000000" maxlength="6" inputmode="numeric" style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:700">
+  <button class="btn-secondary" style="margin-top:8px" id="btn-join">Join Lobby</button>
+  <div id="home-error" class="error hidden"></div>
+  <div class="conn-dot">
+    <span class="dot" id="conn-dot" style="background:#F87171"></span>
+    <span id="conn-text">Connecting...</span>
+  </div>
+</div>
+<div id="screen-lobby" class="hidden" style="width:100%;max-width:420px">
+  <div id="game-header" class="header hidden">
+    <span class="round-badge" id="round-badge">Round 1</span>
+    <span class="code-badge" id="code-badge"></span>
+    <button class="score-btn" id="btn-scoreboard">&#x1F3C6;</button>
+  </div>
+  <div class="card" id="game-card"></div>
+</div>
+<div id="screen-scoreboard" class="hidden" style="width:100%;max-width:420px">
+  <div class="card">
+    <h2 class="heading">&#x1F3C6; Scoreboard</h2>
+    <div id="scoreboard-list"></div>
+    <button class="btn-secondary" id="btn-back-score">Back</button>
+  </div>
+</div>
+
+<script>
+var ws = null, myId = null, lobbyCode = '', gs = null;
+var prevGuessResult = null, guessSelResponse = null, guessSelPlayer = null, dragIdx = null;
+
+function connect() {
+  try {
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(proto + location.host);
+    ws.onopen = function() {
+      document.getElementById('conn-dot').style.background = '#34D399';
+      document.getElementById('conn-text').textContent = 'Connected';
+    };
+    ws.onclose = function() {
+      document.getElementById('conn-dot').style.background = '#F87171';
+      document.getElementById('conn-text').textContent = 'Reconnecting...';
+      setTimeout(connect, 2000);
+    };
+    ws.onerror = function(e) { console.error('WS error', e); };
+    ws.onmessage = function(e) {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'joined') onJoined(msg);
+      else if (msg.type === 'error') showError(msg.message);
+      else if (msg.type === 'state') onState(msg.state);
+      else if (msg.type === 'left' || msg.type === 'kicked') onLeft(msg.type);
+    };
+  } catch(e) { console.error('Connect error', e); setTimeout(connect, 2000); }
+}
+
+function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+
+function onJoined(msg) {
+  myId = msg.playerId;
+  lobbyCode = msg.code;
+  document.getElementById('screen-home').classList.add('hidden');
+  document.getElementById('screen-lobby').classList.remove('hidden');
+}
+
+function onLeft(reason) {
+  myId = null; lobbyCode = ''; gs = null;
+  prevGuessResult = null; guessSelResponse = null; guessSelPlayer = null;
+  document.getElementById('screen-lobby').classList.add('hidden');
+  document.getElementById('screen-scoreboard').classList.add('hidden');
+  document.getElementById('screen-home').classList.remove('hidden');
+  if (reason === 'kicked') showError('You were removed from the lobby');
+}
+
+function showError(text) {
+  var el = document.getElementById('home-error');
+  el.textContent = text; el.classList.remove('hidden');
+  setTimeout(function() { el.classList.add('hidden'); }, 3000);
+}
+
+function onState(state) {
+  gs = state;
+  myId = state.yourId || myId;
+  var r = state.guessResult;
+  if (r && JSON.stringify(r) !== JSON.stringify(prevGuessResult)) {
+    if (r.correct) { showToast('\u2705 ' + r.guesserName + ' matched ' + r.matchedName + '! +1', 'correct'); fireConfetti(); }
+    else { showToast('\u274C ' + r.guesserName + ' guessed wrong', 'wrong'); }
+    guessSelResponse = null; guessSelPlayer = null;
+  }
+  prevGuessResult = r;
+  render();
+}
+
+function showToast(text, type) {
+  var el = document.getElementById('toast');
+  el.textContent = text; el.className = 'toast toast-' + type;
+  setTimeout(function() { el.classList.add('hidden'); }, 2500);
+}
+
+function fireConfetti() {
+  var el = document.getElementById('confetti'); el.classList.remove('hidden');
+  var colors = ['#EC4899','#A855F7','#FFD93D','#6BFFB8','#FF6BD6','#818CF8']; var h = '';
+  for (var i = 0; i < 24; i++) {
+    var x=Math.random()*100, d=Math.random()*0.3, dur=0.8+Math.random()*0.6, sz=4+Math.random()*6, c=colors[i%6];
+    h += '<div class="confetti-particle" style="left:'+x+'%;width:'+sz+'px;height:'+sz+'px;border-radius:'+(sz>7?'50%':'1px')+';background:'+c+';animation:confettiFall '+dur+'s '+d+'s ease-in forwards"></div>';
+  }
+  el.innerHTML = h; setTimeout(function() { el.classList.add('hidden'); el.innerHTML=''; }, 2000);
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function showScoreboard() {
+  if (!gs) return;
+  var sorted = gs.players.slice().sort(function(a,b){return (gs.scores[b.id]||0)-(gs.scores[a.id]||0);});
+  var h = '';
+  sorted.forEach(function(p,i) {
+    h += '<div class="score-row'+(i===0?' first':'')+'"><span class="score-rank">'+(i===0?'\u{1F451}':'#'+(i+1))+'</span><span class="score-name">'+esc(p.name)+(p.id===myId?' (you)':'')+'</span><span class="score-val">'+(gs.scores[p.id]||0)+'</span></div>';
+  });
+  document.getElementById('scoreboard-list').innerHTML = h;
+  document.getElementById('screen-lobby').classList.add('hidden');
+  document.getElementById('screen-scoreboard').classList.remove('hidden');
+}
+
+function hideScoreboard() {
+  document.getElementById('screen-scoreboard').classList.add('hidden');
+  document.getElementById('screen-lobby').classList.remove('hidden');
+}
+
+function render() {
+  if (!gs) return;
+  var card = document.getElementById('game-card');
+  var header = document.getElementById('game-header');
+  var amHost = gs.hostId === myId;
+  var amPrompter = gs.players[gs.prompterIdx] && gs.players[gs.prompterIdx].id === myId;
+  var amGuesser = gs.currentGuesserIdx != null && gs.players[gs.currentGuesserIdx] && gs.players[gs.currentGuesserIdx].id === myId;
+  var prompter = gs.players[gs.prompterIdx];
+
+  if (gs.phase !== 'waiting' && gs.phase !== 'game_over') {
+    header.classList.remove('hidden');
+    document.getElementById('round-badge').textContent = 'Round ' + (gs.roundNumber||1);
+    document.getElementById('code-badge').textContent = '#' + lobbyCode;
+  } else { header.classList.add('hidden'); }
+
+  var h = '';
+
+  if (gs.phase === 'waiting') {
+    h += '<div style="text-align:center;margin-bottom:24px"><h1 class="logo" style="font-size:32px">GHOST WRITER</h1></div>';
+    h += '<div class="code-display"><span class="code-label">Lobby Code</span><span class="code-value">'+lobbyCode+'</span></div>';
+    h += '<span class="label">'+gs.players.length+' Player'+(gs.players.length!==1?'s':'')+'</span>';
+    gs.players.forEach(function(p,i) {
+      if (amHost) {
+        h += '<div class="player-row drag-row" draggable="true" data-idx="'+i+'"><span class="drag-handle">\u2630</span>';
+      } else {
+        h += '<div class="player-row">';
+      }
+      h += '<span class="name">'+esc(p.name)+(p.id===myId?' (you)':'')+(p.id===gs.hostId?' \u2B50':'')+'</span>';
+      h += '<span class="status '+(p.connected?'online':'offline')+'">'+(p.connected?'Online':'Offline')+'</span>';
+      if (amHost && p.id !== myId) {
+        h += '<button class="kick-btn" data-kick="'+p.id+'">\u2715</button>';
+      }
+      h += '</div>';
+    });
+    if (amHost) {
+      h += '<div style="margin:16px 0"><span class="label">Points to Win</span>';
+      h += '<input id="target-score" class="input" style="text-align:center;font-size:20px;font-weight:700" value="'+gs.targetScore+'" inputmode="numeric" maxlength="3"></div>';
+      var canStart = gs.players.length >= 3;
+      h += '<button class="btn-primary'+(canStart?'':' disabled')+'" id="btn-start">'+(canStart?'Start Game':'Need '+(3-gs.players.length)+' more')+'</button>';
+      h += '<button class="btn-leave" id="btn-leave">Close Lobby</button>';
+    } else {
+      h += '<div class="waiting-msg"><div class="waiting-dots"><span style="animation-delay:0s"></span><span style="animation-delay:0.2s"></span><span style="animation-delay:0.4s"></span></div>';
+      h += '<p style="margin:0;color:rgba(255,255,255,0.45);font-size:14px">Please wait for your host to start the game</p>';
+      h += '<p style="margin:4px 0 0;color:rgba(255,255,255,0.25);font-size:12px">Playing to '+gs.targetScore+' points</p></div>';
+      h += '<button class="btn-leave" id="btn-leave">Leave Lobby</button>';
+    }
+  }
+
+  else if (gs.phase === 'prompt') {
+    if (amPrompter) {
+      h += '<div class="phase-label">\u270D\uFE0F Your Turn to Prompt!</div>';
+      h += '<h2 class="heading">Write a Prompt</h2><p class="subtext">Everyone else will answer it</p>';
+      h += '<div class="prompt-prefix">Stuff...</div>';
+      h += '<textarea id="prompt-input" class="textarea" placeholder="I wouldn&#39;t do in the library" rows="3"></textarea>';
+      h += '<button class="btn-primary" id="btn-submit-prompt">Submit Prompt</button>';
+    } else {
+      h += '<div style="text-align:center;padding:30px 0"><div class="phase-label">\u270D\uFE0F '+esc(prompter?prompter.name:'')+' is writing...</div>';
+      h += '<div class="waiting-dots"><span style="animation-delay:0s"></span><span style="animation-delay:0.2s"></span><span style="animation-delay:0.4s"></span></div></div>';
+    }
+  }
+
+  else if (gs.phase === 'respond') {
+    h += '<div class="prompt-display"><span class="prompt-display-label">Stuff...</span>'+esc(gs.prompt)+'</div>';
+    if (amPrompter) {
+      var rc = gs.respondedPlayerIds ? gs.respondedPlayerIds.length : 0;
+      h += '<div class="phase-label">\u23F3 Waiting for responses</div>';
+      h += '<p class="subtext">'+rc+' / '+(gs.players.length-1)+' submitted</p>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">';
+      gs.players.forEach(function(p) {
+        if (p.id === myId) return;
+        var done = gs.respondedPlayerIds && gs.respondedPlayerIds.indexOf(p.id) !== -1;
+        h += '<div class="status-chip '+(done?'status-done':'status-waiting')+'">'+(done?'\u2713 ':'')+esc(p.name)+'</div>';
+      });
+      h += '</div>';
+    } else if (gs.youResponded) {
+      h += '<div class="phase-label">\u2705 Response submitted!</div>';
+      h += '<p class="subtext">Waiting for others...</p>';
+    } else {
+      h += '<div class="phase-label">\uD83D\uDCDD Write Your Response</div>';
+      h += '<p class="subtext">Keep it secret!</p>';
+      h += '<textarea id="response-input" class="textarea" placeholder="Type your answer..." rows="2"></textarea>';
+      h += '<button class="btn-primary" id="btn-submit-response">Submit</button>';
+    }
+  }
+
+  else if (gs.phase === 'favorite') {
+    h += '<div class="prompt-display"><span class="prompt-display-label">Stuff...</span>'+esc(gs.prompt)+'</div>';
+    if (amPrompter) {
+      h += '<div class="phase-label">\u2B50 Pick Your Favorite!</div>';
+      (gs.responses||[]).forEach(function(r,i) {
+        var sel = gs.favoriteIdx===i?' selected':'';
+        h += '<button class="response-card'+sel+'" data-fav="'+i+'"><span class="response-num">#'+(i+1)+'</span><span>'+esc(r.text)+'</span></button>';
+      });
+    } else {
+      h += '<div class="phase-label">\u2B50 '+esc(prompter?prompter.name:'')+' is picking a favorite...</div>';
+      (gs.responses||[]).forEach(function(r,i) {
+        h += '<div class="response-card"><span class="response-num">#'+(i+1)+'</span><span>'+esc(r.text)+'</span></div>';
+      });
+    }
+  }
+
+  else if (gs.phase === 'guess') {
+    var guesser = gs.players[gs.currentGuesserIdx];
+    var eliminated = gs.eliminatedThisRound || [];
+    var guessable = gs.players.filter(function(p){return p.id!==(prompter?prompter.id:'') && eliminated.indexOf(p.id)===-1;});
+    var allResp = gs.responses || [];
+    h += '<div class="prompt-display"><span class="prompt-display-label">Stuff...</span>'+esc(gs.prompt)+'</div>';
+    if (amGuesser) {
+      h += '<div class="phase-label">\uD83D\uDD0D Your Turn to Guess!</div>';
+      h += '<p class="subtext">Match a response to a player</p>';
+      h += '<span class="label">Pick a response:</span><div style="display:flex;flex-direction:column;margin-bottom:14px">';
+      allResp.forEach(function(r,i) {
+        var sel = guessSelResponse===i?' selected':'';
+        h += '<button class="response-card-sm'+sel+'" data-resp="'+i+'"><span>'+esc(r.text)+'</span></button>';
+      });
+      h += '</div><span class="label" style="margin-top:8px">Who wrote it?</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">';
+      guessable.forEach(function(p) {
+        var sel = guessSelPlayer===p.id?' active':'';
+        h += '<button class="player-guess-btn'+sel+'" data-player="'+p.id+'">'+esc(p.name)+'</button>';
+      });
+      h += '</div>';
+      var canGuess = guessSelResponse!==null && guessSelPlayer;
+      h += '<button class="btn-primary'+(canGuess?'':' disabled')+'" id="btn-guess">Lock In Guess</button>';
+    } else {
+      h += '<div class="phase-label">\uD83D\uDD0D '+esc(guesser?guesser.name:'')+' is guessing...</div>';
+      h += '<div style="display:flex;flex-direction:column;margin-top:12px">';
+      allResp.forEach(function(r) { h += '<div class="response-card-sm"><span>'+esc(r.text)+'</span></div>'; });
+      h += '</div>';
+    }
+    if (eliminated.length > 0) {
+      h += '<div style="margin-top:12px"><span class="label" style="color:rgba(255,255,255,0.3)">Matched:</span><div>';
+      eliminated.forEach(function(id) {
+        var p = gs.players.find(function(pl){return pl.id===id;});
+        h += '<span class="matched-chip">\u2713 '+esc(p?p.name:'')+'</span>';
+      });
+      h += '</div></div>';
+    }
+  }
+
+  else if (gs.phase === 'round_end') {
+    h += '<h2 class="heading">Round '+(gs.roundNumber||1)+' Complete!</h2>';
+    (gs.revealedAnswers||[]).forEach(function(r) {
+      h += '<div class="reveal-row"><span class="reveal-text">&ldquo;'+esc(r.text)+'&rdquo;</span><span class="reveal-name">&mdash; '+esc(r.playerName)+'</span></div>';
+    });
+    if (amHost) { h += '<button class="btn-primary" style="margin-top:16px" id="btn-next-round">Next Round \u2192</button>'; }
+    else { h += '<p class="subtext" style="margin-top:16px">Waiting for host to start next round...</p>'; }
+  }
+
+  else if (gs.phase === 'game_over') {
+    var sorted = gs.players.slice().sort(function(a,b){return (gs.scores[b.id]||0)-(gs.scores[a.id]||0);});
+    var winner = sorted[0];
+    h += '<div style="font-size:56px;text-align:center;margin-bottom:8px">\uD83C\uDF89</div>';
+    h += '<h2 class="heading" style="font-size:28px">Game Over!</h2>';
+    h += '<div class="winner-name">'+esc(winner.name)+(winner.id===myId?' (you!)':'')+' Wins!</div>';
+    h += '<div class="winner-score">'+(gs.scores[winner.id]||0)+' points</div>';
+    h += '<div style="margin:16px 0">';
+    sorted.forEach(function(p,i) {
+      h += '<div class="score-row'+(i===0?' first':'')+'"><span class="score-rank">'+(i===0?'\u{1F451}':'#'+(i+1))+'</span><span class="score-name">'+esc(p.name)+(p.id===myId?' (you)':'')+'</span><span class="score-val">'+(gs.scores[p.id]||0)+'</span></div>';
+    });
+    h += '</div>';
+    if ((gs.revealedAnswers||[]).length) {
+      h += '<span class="label">Last Round Answers</span>';
+      gs.revealedAnswers.forEach(function(r) {
+        h += '<div class="reveal-row"><span class="reveal-text">&ldquo;'+esc(r.text)+'&rdquo;</span><span class="reveal-name">&mdash; '+esc(r.playerName)+'</span></div>';
+      });
+    }
+    if (amHost) { h += '<button class="btn-primary" style="margin-top:16px" id="btn-play-again">Play Again</button>'; }
+    fireConfetti();
+  }
+
+  card.innerHTML = h;
+  bindCardEvents();
+}
+
+function bindCardEvents() {
+  var el;
+  el = document.getElementById('btn-start');
+  if (el) el.onclick = function() { send({type:'start_game'}); };
+  el = document.getElementById('btn-leave');
+  if (el) el.onclick = function() { send({type:'leave_lobby'}); };
+  document.querySelectorAll('[data-kick]').forEach(function(btn) {
+    btn.onclick = function() { send({type:'kick_player', playerId: btn.getAttribute('data-kick')}); };
+  });
+  el = document.getElementById('btn-submit-prompt');
+  if (el) el.onclick = function() {
+    var inp = document.getElementById('prompt-input');
+    if (inp && inp.value.trim()) send({type:'submit_prompt', prompt: inp.value.trim()});
+  };
+  el = document.getElementById('btn-submit-response');
+  if (el) el.onclick = function() {
+    var inp = document.getElementById('response-input');
+    if (inp && inp.value.trim()) send({type:'submit_response', response: inp.value.trim()});
+  };
+  el = document.getElementById('btn-next-round');
+  if (el) el.onclick = function() { send({type:'next_round'}); };
+  el = document.getElementById('btn-play-again');
+  if (el) el.onclick = function() { send({type:'play_again'}); };
+  el = document.getElementById('btn-guess');
+  if (el) el.onclick = function() {
+    if (guessSelResponse !== null && guessSelPlayer) send({type:'submit_guess', responseIdx: guessSelResponse, playerId: guessSelPlayer});
+  };
+  el = document.getElementById('target-score');
+  if (el) el.onblur = function() {
+    var v = parseInt(el.value);
+    if (v > 0 && v <= 100) send({type:'update_settings', targetScore: v});
+  };
+  document.querySelectorAll('[data-fav]').forEach(function(btn) {
+    btn.onclick = function() {
+      if (gs.favoriteIdx !== null) return;
+      send({type:'select_favorite', index: parseInt(btn.getAttribute('data-fav'))});
+      fireConfetti();
+    };
+  });
+  document.querySelectorAll('[data-resp]').forEach(function(btn) {
+    btn.onclick = function() { guessSelResponse = parseInt(btn.getAttribute('data-resp')); render(); };
+  });
+  document.querySelectorAll('[data-player]').forEach(function(btn) {
+    btn.onclick = function() { guessSelPlayer = btn.getAttribute('data-player'); render(); };
+  });
+  document.querySelectorAll('.drag-row').forEach(function(row) {
+    row.addEventListener('dragstart', function() { dragIdx = parseInt(row.getAttribute('data-idx')); row.classList.add('dragging'); });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      var idx = parseInt(row.getAttribute('data-idx'));
+      document.querySelectorAll('.drag-row').forEach(function(r,i) { r.classList.toggle('over', i===idx && dragIdx!==null && dragIdx!==idx); });
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      var toIdx = parseInt(row.getAttribute('data-idx'));
+      if (dragIdx!==null && dragIdx!==toIdx) {
+        var order = gs.players.slice();
+        var moved = order.splice(dragIdx,1)[0];
+        order.splice(toIdx,0,moved);
+        send({type:'reorder_players', order: order.map(function(p){return p.id;})});
+      }
+      dragIdx=null; document.querySelectorAll('.drag-row').forEach(function(r){r.classList.remove('dragging','over');});
+    });
+    row.addEventListener('dragend', function() {
+      dragIdx=null; document.querySelectorAll('.drag-row').forEach(function(r){r.classList.remove('dragging','over');});
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  connect();
+  document.getElementById('code-input').addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
+  document.getElementById('btn-create').addEventListener('click', function() {
+    var name = document.getElementById('name-input').value.trim();
+    if (!name) return showError('Enter your name');
+    send({type:'create_lobby', name: name});
+  });
+  document.getElementById('btn-join').addEventListener('click', function() {
+    var name = document.getElementById('name-input').value.trim();
+    var code = document.getElementById('code-input').value.trim();
+    if (!name) return showError('Enter your name');
+    if (code.length !== 6) return showError('Enter a 6-digit code');
+    send({type:'join_lobby', name: name, code: code});
+  });
+  document.getElementById('btn-scoreboard').addEventListener('click', showScoreboard);
+  document.getElementById('btn-back-score').addEventListener('click', hideScoreboard);
+});
+</script>
+</body>
+</html>
