@@ -80,6 +80,7 @@ button{cursor:pointer}
 .confetti{position:fixed;inset:0;pointer-events:none;z-index:999}
 .confetti-particle{position:absolute;top:-10px}
 .hidden{display:none!important}
+.reconnect-banner{position:fixed;top:0;left:0;right:0;z-index:999;padding:8px 12px;text-align:center;font-size:13px;font-weight:700;letter-spacing:.5px;color:#1a0a3e;background:#FFD93D;box-shadow:0 2px 12px rgba(0,0,0,0.3)}
 .disabled{opacity:0.4;pointer-events:none}
 .kick-btn{background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:#F87171;border-radius:8px;padding:4px 8px;font-size:13px;font-weight:700;flex-shrink:0;margin-left:4px}
 .btn-leave{width:100%;padding:10px 0;border-radius:12px;border:1px solid rgba(248,113,113,0.25);background:rgba(248,113,113,0.08);color:#F87171;font-size:14px;font-weight:600;margin-top:12px}
@@ -87,6 +88,7 @@ button{cursor:pointer}
 </head>
 <body>
 <div id="toast" class="toast hidden"></div>
+<div id="reconnect-banner" class="reconnect-banner hidden">Reconnecting&hellip;</div>
 <div id="confetti" class="confetti hidden"></div>
 <div id="screen-home" class="card">
   <div style="text-align:center;margin-bottom:24px">
@@ -128,17 +130,38 @@ button{cursor:pointer}
 var ws = null, myId = null, lobbyCode = '', gs = null;
 var prevGuessResult = null, guessSelResponse = null, guessSelPlayer = null, dragIdx = null;
 
+var SESSION_KEY = 'gw_session';
+function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch(e) { return null; } }
+function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e) {} }
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch(e) {} }
+
+function setConn(ok, text) {
+  document.getElementById('conn-dot').style.background = ok ? '#34D399' : '#F87171';
+  document.getElementById('conn-text').textContent = text;
+}
+function showReconnectBanner(show) {
+  document.getElementById('reconnect-banner').classList.toggle('hidden', !show);
+}
+
 function connect() {
   try {
     var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     ws = new WebSocket(proto + location.host);
     ws.onopen = function() {
-      document.getElementById('conn-dot').style.background = '#34D399';
-      document.getElementById('conn-text').textContent = 'Connected';
+      var session = loadSession();
+      if (session && session.code && session.playerId) {
+        // Keep showing "Reconnecting..." until the server confirms with "joined"
+        setConn(false, 'Reconnecting...');
+        send({type:'rejoin', code: session.code, playerId: session.playerId});
+      } else {
+        setConn(true, 'Connected');
+      }
     };
     ws.onclose = function() {
-      document.getElementById('conn-dot').style.background = '#F87171';
-      document.getElementById('conn-text').textContent = 'Reconnecting...';
+      setConn(false, 'Reconnecting...');
+      var inLobby = !document.getElementById('screen-lobby').classList.contains('hidden') ||
+                    !document.getElementById('screen-scoreboard').classList.contains('hidden');
+      if (inLobby) showReconnectBanner(true);
       setTimeout(connect, 2000);
     };
     ws.onerror = function(e) { console.error('WS error', e); };
@@ -148,6 +171,7 @@ function connect() {
       else if (msg.type === 'error') showError(msg.message);
       else if (msg.type === 'state') onState(msg.state);
       else if (msg.type === 'left' || msg.type === 'kicked') onLeft(msg.type);
+      else if (msg.type === 'rejoin_failed') { setConn(true, 'Connected'); onLeft('rejoin_failed'); }
     };
   } catch(e) { console.error('Connect error', e); setTimeout(connect, 2000); }
 }
@@ -157,11 +181,17 @@ function send(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg))
 function onJoined(msg) {
   myId = msg.playerId;
   lobbyCode = msg.code;
+  saveSession({code: msg.code, playerId: msg.playerId, name: msg.name});
+  setConn(true, 'Connected');
+  showReconnectBanner(false);
   document.getElementById('screen-home').classList.add('hidden');
-  document.getElementById('screen-lobby').classList.remove('hidden');
+  if (document.getElementById('screen-scoreboard').classList.contains('hidden'))
+    document.getElementById('screen-lobby').classList.remove('hidden');
 }
 
 function onLeft(reason) {
+  clearSession();
+  showReconnectBanner(false);
   myId = null; lobbyCode = ''; gs = null;
   prevGuessResult = null; guessSelResponse = null; guessSelPlayer = null;
   document.getElementById('screen-lobby').classList.add('hidden');
