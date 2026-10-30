@@ -51,6 +51,7 @@ function sanitizeLobby(lobby) {
     scores:lobby.scores, respondedPlayerIds:lobby.respondedPlayerIds||[],
     guessResult:lobby.guessResult||null, revealedAnswers:lobby.revealedAnswers||[],
     roundNumber:lobby.roundNumber||1,
+    responseTime:lobby.responseTime??60, respondDeadline:lobby.respondDeadline||null, noResponseIds:lobby.noResponseIds||[],
   };
 }
 
@@ -66,6 +67,30 @@ function findNextGuesser(lobby, afterIdx) {
   const n=lobby.players.length; let idx=(afterIdx+1)%n; const start=idx;
   do { if(idx!==lobby.prompterIdx&&!lobby.eliminatedThisRound.includes(lobby.players[idx].id)) return idx; idx=(idx+1)%n; } while(idx!==start);
   return -1;
+}
+
+function clearRespondTimer(lobby) {
+  if(lobby.respondTimer){ clearTimeout(lobby.respondTimer); lobby.respondTimer=null; }
+  lobby.respondDeadline=null;
+}
+
+// Non-prompter players still in the round whose response is in play (eliminated and no-response players don't count)
+function unmatchedResponders(lobby) {
+  const prompterId=lobby.players[lobby.prompterIdx]?.id;
+  return lobby.players.filter(p=>p.id!==prompterId&&!lobby.eliminatedThisRound.includes(p.id)&&lobby._shuffled.some(r=>r.playerId===p.id));
+}
+
+// Ends the respond phase with whatever answers are in, either because everyone answered or the timer ran out.
+function finishRespondPhase(lobby) {
+  if(lobby.phase!=="respond") return;
+  clearRespondTimer(lobby);
+  const prompterId=lobby.players[lobby.prompterIdx]?.id;
+  lobby.noResponseIds=lobby.players.filter(p=>p.id!==prompterId&&lobby._responses[p.id]==null).map(p=>p.id);
+  const shuffled=shuffle(Object.entries(lobby._responses).map(([pid,t])=>({playerId:pid,text:t})));
+  lobby._shuffled=shuffled; lobby.responses=shuffled.map(r=>({text:r.text}));
+  if(shuffled.length===0){ lobby.phase="round_end"; lobby.revealedAnswers=[]; }
+  else { lobby.phase="favorite"; lobby.favoriteIdx=null; }
+  broadcastState(lobby.code);
 }
 
 function handleMessage(ws, data) {
@@ -85,7 +110,7 @@ function handleCreateLobby(ws, msg) {
   const name=(msg.name||"").trim();
   if(!name||name.length>20) return sendTo(ws,{type:"error",message:"Invalid name"});
   const code=generateCode(), pid=uuidv4();
-  lobbies.set(code,{code,hostId:pid,targetScore:10,players:[{id:pid,name,ws}],phase:"waiting",
+  lobbies.set(code,{code,hostId:pid,targetScore:10,responseTime:60,respondDeadline:null,respondTimer:null,noResponseIds:[],players:[{id:pid,name,ws}],phase:"waiting",
     prompterIdx:0,prompt:"",responses:[],_responses:{},_shuffled:[],respondedPlayerIds:[],currentGuesserIdx:null,
     eliminatedThisRound:[],favoriteIdx:null,scores:{[pid]:0},guessResult:null,revealedAnswers:[],roundNumber:0});
   clients.set(ws,{lobbyCode:code,playerId:pid});
@@ -130,12 +155,11 @@ function handleLeaveLobby(ws) {
   // Host leaving before the game starts closes the lobby for everyone
   if(info.playerId===lobby.hostId&&lobby.phase==="waiting"){
     for(const p of lobby.players){
-      if(p.removeTimer) clearTimeout(p.removeTimer);
       if(p.id===info.playerId) continue;
       sendTo(p.ws,{type:"left"});
       if(p.ws) clients.delete(p.ws);
     }
-    lobbies.delete(info.lobbyCode);
+    deleteLobby(info.lobbyCode);
     return;
   }
   removePlayer(lobby,info.playerId);
@@ -172,11 +196,12 @@ function removePlayer(lobby, playerId) {
   lobby._responses=lobby._responses||{}; delete lobby._responses[playerId];
   lobby.respondedPlayerIds=(lobby.respondedPlayerIds||[]).filter(id=>id!==playerId);
   lobby.eliminatedThisRound=(lobby.eliminatedThisRound||[]).filter(id=>id!==playerId);
+  lobby.noResponseIds=(lobby.noResponseIds||[]).filter(id=>id!==playerId);
   lobby._shuffled=(lobby._shuffled||[]).filter(r=>r.playerId!==playerId);
   if(lobby.phase==="guess") lobby.responses=lobby._shuffled.filter(r=>!lobby.eliminatedThisRound.includes(r.playerId)).map(r=>({text:r.text}));
   else if(lobby.phase==="favorite") lobby.responses=lobby._shuffled.map(r=>({text:r.text}));
 
-  if(lobby.players.length===0){ lobbies.delete(lobby.code); return; }
+  if(lobby.players.length===0){ deleteLobby(lobby.code); return; }
   if(lobby.hostId===playerId) lobby.hostId=lobby.players[0].id;
 
   // Shift indices that pointed past the removed slot
@@ -187,6 +212,7 @@ function removePlayer(lobby, playerId) {
   if(lobby.phase!=="waiting"&&lobby.players.length<3){
     lobby.phase="game_over";
     lobby.revealedAnswers=reveal(lobby._shuffled.length?lobby._shuffled:fromResponses());
+    clearRespondTimer(lobby);
     broadcastState(lobby.code); return;
   }
 
@@ -196,12 +222,8 @@ function removePlayer(lobby, playerId) {
       if(wasPrompter) lobby.prompterIdx=removedIdx%lobby.players.length;
       break;
     case "respond":
-      if(wasPrompter){ endRound(fromResponses()); break; }
-      if(Object.keys(lobby._responses).length>=lobby.players.length-1){
-        const shuffled=shuffle(fromResponses());
-        lobby._shuffled=shuffled; lobby.responses=shuffled.map(r=>({text:r.text}));
-        lobby.phase="favorite"; lobby.favoriteIdx=null;
-      }
+      if(wasPrompter){ clearRespondTimer(lobby); endRound(fromResponses()); break; }
+      if(Object.keys(lobby._responses).length>=lobby.players.length-1){ finishRespondPhase(lobby); return; }
       break;
     case "favorite":
       if(wasPrompter||lobby._shuffled.length===0) endRound(lobby._shuffled);
@@ -214,10 +236,18 @@ function removePlayer(lobby, playerId) {
         if(next===-1){ endRound(lobby._shuffled); break; }
         lobby.currentGuesserIdx=next;
       }
-      if(lobby.players.filter(p=>p.id!==lobby.players[lobby.prompterIdx].id&&!lobby.eliminatedThisRound.includes(p.id)).length<=1) endRound(lobby._shuffled);
+      if(unmatchedResponders(lobby).length<=1) endRound(lobby._shuffled);
       break;
   }
   broadcastState(lobby.code);
+}
+
+// Drops a lobby and every timer that could fire on it afterwards.
+function deleteLobby(code) {
+  const lobby=lobbies.get(code); if(!lobby) return;
+  clearRespondTimer(lobby);
+  for(const p of lobby.players) if(p.removeTimer){ clearTimeout(p.removeTimer); p.removeTimer=null; }
+  lobbies.delete(code);
 }
 
 function handleReorder(ws, msg) {
@@ -233,6 +263,7 @@ function handleUpdateSettings(ws, msg) {
   const info=clients.get(ws); if(!info) return;
   const lobby=lobbies.get(info.lobbyCode); if(!lobby||lobby.hostId!==info.playerId) return;
   if(typeof msg.targetScore==="number"&&msg.targetScore>0&&msg.targetScore<=100) lobby.targetScore=Math.floor(msg.targetScore);
+  if(typeof msg.responseTime==="number"&&msg.responseTime>=0&&msg.responseTime<=600) lobby.responseTime=Math.floor(msg.responseTime);
   broadcastState(info.lobbyCode);
 }
 
@@ -240,8 +271,10 @@ function handleStartGame(ws) {
   const info=clients.get(ws); if(!info) return;
   const lobby=lobbies.get(info.lobbyCode); if(!lobby||lobby.hostId!==info.playerId) return;
   if(lobby.players.length<3) return sendTo(ws,{type:"error",message:"Need at least 3 players"});
+  clearRespondTimer(lobby);
   Object.assign(lobby,{phase:"prompt",prompterIdx:0,roundNumber:1,prompt:"",_responses:{},_shuffled:[],responses:[],
-    respondedPlayerIds:[],eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[]});
+    respondedPlayerIds:[],eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[],
+    noResponseIds:[],respondDeadline:null});
   broadcastState(info.lobbyCode);
 }
 
@@ -250,7 +283,13 @@ function handleSubmitPrompt(ws, msg) {
   const lobby=lobbies.get(info.lobbyCode); if(!lobby||lobby.phase!=="prompt") return;
   if(lobby.players[lobby.prompterIdx].id!==info.playerId) return;
   const text=(msg.prompt||"").trim(); if(!text) return;
-  lobby.prompt=text; lobby.phase="respond"; lobby._responses={}; lobby.respondedPlayerIds=[];
+  lobby.prompt=text; lobby.phase="respond"; lobby._responses={}; lobby.respondedPlayerIds=[]; lobby.noResponseIds=[];
+  clearRespondTimer(lobby);
+  const secs=lobby.responseTime??60;
+  if(secs>0){
+    lobby.respondDeadline=Date.now()+secs*1000;
+    lobby.respondTimer=setTimeout(()=>finishRespondPhase(lobby),secs*1000);
+  }
   broadcastState(info.lobbyCode);
 }
 
@@ -261,11 +300,7 @@ function handleSubmitResponse(ws, msg) {
   if(info.playerId===prompter.id||lobby._responses[info.playerId]!=null) return;
   const text=(msg.response||"").trim(); if(!text) return;
   lobby._responses[info.playerId]=text; lobby.respondedPlayerIds.push(info.playerId);
-  if(Object.keys(lobby._responses).length>=lobby.players.filter(p=>p.id!==prompter.id).length){
-    const shuffled=shuffle(Object.entries(lobby._responses).map(([pid,t])=>({playerId:pid,text:t})));
-    lobby._shuffled=shuffled; lobby.responses=shuffled.map(r=>({text:r.text}));
-    lobby.phase="favorite"; lobby.favoriteIdx=null;
-  }
+  if(Object.keys(lobby._responses).length>=lobby.players.filter(p=>p.id!==prompter.id).length) return finishRespondPhase(lobby);
   broadcastState(info.lobbyCode);
 }
 
@@ -309,7 +344,7 @@ function handleSubmitGuess(ws, msg) {
       lobby.revealedAnswers=lobby._shuffled.map(r=>({text:r.text,playerId:r.playerId,playerName:lobby.players.find(p=>p.id===r.playerId)?.name}));
       broadcastState(info.lobbyCode); return;
     }
-    if(lobby.players.filter(p=>p.id!==lobby.players[lobby.prompterIdx].id&&!lobby.eliminatedThisRound.includes(p.id)).length<=1){
+    if(unmatchedResponders(lobby).length<=1){
       lobby.phase="round_end";
       lobby.revealedAnswers=lobby._shuffled.map(r=>({text:r.text,playerId:r.playerId,playerName:lobby.players.find(p=>p.id===r.playerId)?.name}));
       broadcastState(info.lobbyCode); return;
@@ -330,8 +365,10 @@ function handleNextRound(ws) {
   const lobby=lobbies.get(info.lobbyCode); if(!lobby||lobby.phase!=="round_end"||lobby.hostId!==info.playerId) return;
   lobby.prompterIdx=(lobby.prompterIdx+1)%lobby.players.length;
   lobby.roundNumber=(lobby.roundNumber||1)+1;
+  clearRespondTimer(lobby);
   Object.assign(lobby,{phase:"prompt",prompt:"",_responses:{},_shuffled:[],respondedPlayerIds:[],responses:[],
-    eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[]});
+    eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[],
+    noResponseIds:[],respondDeadline:null});
   broadcastState(info.lobbyCode);
 }
 
@@ -339,8 +376,10 @@ function handlePlayAgain(ws) {
   const info=clients.get(ws); if(!info) return;
   const lobby=lobbies.get(info.lobbyCode); if(!lobby||lobby.hostId!==info.playerId) return;
   for(const p of lobby.players) lobby.scores[p.id]=0;
+  clearRespondTimer(lobby);
   Object.assign(lobby,{phase:"waiting",prompterIdx:0,roundNumber:0,prompt:"",_responses:{},_shuffled:[],respondedPlayerIds:[],
-    responses:[],eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[]});
+    responses:[],eliminatedThisRound:[],favoriteIdx:null,currentGuesserIdx:null,guessResult:null,revealedAnswers:[],
+    noResponseIds:[],respondDeadline:null});
   broadcastState(info.lobbyCode);
 }
 

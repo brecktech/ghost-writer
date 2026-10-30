@@ -47,6 +47,11 @@ button{cursor:pointer}
 .round-badge{background:rgba(168,85,247,0.2);border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;color:#D8B4FE}
 .code-badge{background:rgba(168,85,247,0.15);border-radius:20px;padding:6px 12px;font-size:12px;font-weight:700;color:rgba(216,180,254,0.5);letter-spacing:1px;flex:1}
 .score-btn{background:rgba(168,85,247,0.2);border:none;border-radius:20px;padding:6px 12px;font-size:14px}
+.leave-btn{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:#F87171;border-radius:20px;padding:6px 12px;font-size:12px;font-weight:600}
+.status-none{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.25);color:#F87171}
+.countdown{text-align:center;font-size:14px;font-weight:700;color:#FFD93D;margin:0 0 10px}
+.settings-row{display:flex;gap:12px;margin:16px 0}
+.settings-row>div{flex:1}
 .phase-label{font-size:18px;font-weight:700;color:#FFD93D;margin-bottom:4px;text-align:center}
 .heading{font-size:22px;font-weight:800;margin:0 0 12px;text-align:center}
 .subtext{font-size:13px;color:rgba(255,255,255,0.45);text-align:center;margin:0 0 16px}
@@ -115,6 +120,7 @@ button{cursor:pointer}
     <span class="round-badge" id="round-badge">Round 1</span>
     <span class="code-badge" id="code-badge"></span>
     <button class="score-btn" id="btn-scoreboard">&#x1F3C6;</button>
+    <button class="leave-btn" id="btn-leave-game">Leave</button>
   </div>
   <div class="card" id="game-card"></div>
 </div>
@@ -254,6 +260,40 @@ function hideScoreboard() {
   document.getElementById('screen-lobby').classList.remove('hidden');
 }
 
+var countdownTimer = null;
+function countdownHtml() {
+  return gs.respondDeadline ? '<p class="countdown" id="respond-countdown">'+secsLeft()+'s left</p>' : '';
+}
+function secsLeft() { return Math.max(0, Math.ceil((gs.respondDeadline - Date.now()) / 1000)); }
+function syncCountdown() {
+  var active = gs && gs.phase === 'respond' && gs.respondDeadline;
+  if (active && !countdownTimer) {
+    countdownTimer = setInterval(function() {
+      var el = document.getElementById('respond-countdown');
+      if (el && gs && gs.respondDeadline) el.textContent = secsLeft() + 's left';
+    }, 250);
+  } else if (!active && countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+}
+function noResponseChips() {
+  var ids = (gs && gs.noResponseIds) || [];
+  if (!ids.length) return '';
+  var out = '<div style="margin-top:12px"><span class="label" style="color:rgba(255,255,255,0.3)">No response:</span><div>';
+  ids.forEach(function(id) {
+    var p = gs.players.find(function(pl){return pl.id===id;});
+    if (p) out += '<span class="status-chip status-none" style="padding:4px 10px;font-size:12px;margin:2px">'+esc(p.name)+' (no response)</span>';
+  });
+  return out + '</div></div>';
+}
+function noResponseRows() {
+  var ids = (gs && gs.noResponseIds) || [], out = '';
+  ids.forEach(function(id) {
+    var p = gs.players.find(function(pl){return pl.id===id;});
+    if (p) out += '<div class="reveal-row"><span class="reveal-text" style="opacity:0.4">&hellip;</span><span class="reveal-name">&mdash; '+esc(p.name)+' (no response)</span></div>';
+  });
+  return out;
+}
+function leaveGame() { if (window.confirm('Leave the game?')) send({type:'leave_lobby'}); }
+
 function render() {
   if (!gs) return;
   var card = document.getElementById('game-card');
@@ -262,6 +302,8 @@ function render() {
   var amPrompter = gs.players[gs.prompterIdx] && gs.players[gs.prompterIdx].id === myId;
   var amGuesser = gs.currentGuesserIdx != null && gs.players[gs.currentGuesserIdx] && gs.players[gs.currentGuesserIdx].id === myId;
   var prompter = gs.players[gs.prompterIdx];
+  var noResp = gs.noResponseIds || [];
+  syncCountdown();
 
   if (gs.phase !== 'waiting' && gs.phase !== 'game_over') {
     header.classList.remove('hidden');
@@ -289,15 +331,18 @@ function render() {
       h += '</div>';
     });
     if (amHost) {
-      h += '<div style="margin:16px 0"><span class="label">Points to Win</span>';
+      h += '<div class="settings-row"><div><span class="label">Points to Win</span>';
       h += '<input id="target-score" class="input" style="text-align:center;font-size:20px;font-weight:700" value="'+gs.targetScore+'" inputmode="numeric" maxlength="3"></div>';
+      h += '<div><span class="label">Response Time (seconds)</span>';
+      h += '<input id="response-time" class="input" style="text-align:center;font-size:20px;font-weight:700" value="'+(gs.responseTime!=null?gs.responseTime:60)+'" inputmode="numeric" maxlength="3" placeholder="0 = no limit"></div></div>';
       var canStart = gs.players.length >= 3;
       h += '<button class="btn-primary'+(canStart?'':' disabled')+'" id="btn-start">'+(canStart?'Start Game':'Need '+(3-gs.players.length)+' more')+'</button>';
       h += '<button class="btn-leave" id="btn-leave">Close Lobby</button>';
     } else {
       h += '<div class="waiting-msg"><div class="waiting-dots"><span style="animation-delay:0s"></span><span style="animation-delay:0.2s"></span><span style="animation-delay:0.4s"></span></div>';
       h += '<p style="margin:0;color:rgba(255,255,255,0.45);font-size:14px">Please wait for your host to start the game</p>';
-      h += '<p style="margin:4px 0 0;color:rgba(255,255,255,0.25);font-size:12px">Playing to '+gs.targetScore+' points</p></div>';
+      h += '<p style="margin:4px 0 0;color:rgba(255,255,255,0.25);font-size:12px">Playing to '+gs.targetScore+' points</p>';
+      h += '<p style="margin:4px 0 0;color:rgba(255,255,255,0.25);font-size:12px">Response time: '+(gs.responseTime>0?gs.responseTime+'s':'No limit')+'</p></div>';
       h += '<button class="btn-leave" id="btn-leave">Leave Lobby</button>';
     }
   }
@@ -320,19 +365,23 @@ function render() {
     if (amPrompter) {
       var rc = gs.respondedPlayerIds ? gs.respondedPlayerIds.length : 0;
       h += '<div class="phase-label">\u23F3 Waiting for responses</div>';
+      h += countdownHtml();
       h += '<p class="subtext">'+rc+' / '+(gs.players.length-1)+' submitted</p>';
       h += '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">';
       gs.players.forEach(function(p) {
         if (p.id === myId) return;
         var done = gs.respondedPlayerIds && gs.respondedPlayerIds.indexOf(p.id) !== -1;
-        h += '<div class="status-chip '+(done?'status-done':'status-waiting')+'">'+(done?'\u2713 ':'')+esc(p.name)+'</div>';
+        var none = noResp.indexOf(p.id) !== -1;
+        h += '<div class="status-chip '+(done?'status-done':(none?'status-none':'status-waiting'))+'">'+(done?'\u2713 ':'')+esc(p.name)+(none?' (no response)':'')+'</div>';
       });
       h += '</div>';
     } else if (gs.youResponded) {
       h += '<div class="phase-label">\u2705 Response submitted!</div>';
+      h += countdownHtml();
       h += '<p class="subtext">Waiting for others...</p>';
     } else {
       h += '<div class="phase-label">\uD83D\uDCDD Write Your Response</div>';
+      h += countdownHtml();
       h += '<p class="subtext">Keep it secret!</p>';
       h += '<textarea id="response-input" class="textarea" placeholder="Type your answer..." rows="2"></textarea>';
       h += '<button class="btn-primary" id="btn-submit-response">Submit</button>';
@@ -353,12 +402,13 @@ function render() {
         h += '<div class="response-card"><span class="response-num">#'+(i+1)+'</span><span>'+esc(r.text)+'</span></div>';
       });
     }
+    h += noResponseChips();
   }
 
   else if (gs.phase === 'guess') {
     var guesser = gs.players[gs.currentGuesserIdx];
     var eliminated = gs.eliminatedThisRound || [];
-    var guessable = gs.players.filter(function(p){return p.id!==(prompter?prompter.id:'') && eliminated.indexOf(p.id)===-1;});
+    var guessable = gs.players.filter(function(p){return p.id!==(prompter?prompter.id:'') && eliminated.indexOf(p.id)===-1 && noResp.indexOf(p.id)===-1;});
     var allResp = gs.responses || [];
     h += '<div class="prompt-display"><span class="prompt-display-label">Stuff...</span>'+esc(gs.prompt)+'</div>';
     if (amGuesser) {
@@ -391,6 +441,7 @@ function render() {
       });
       h += '</div></div>';
     }
+    h += noResponseChips();
   }
 
   else if (gs.phase === 'round_end') {
@@ -398,6 +449,7 @@ function render() {
     (gs.revealedAnswers||[]).forEach(function(r) {
       h += '<div class="reveal-row"><span class="reveal-text">&ldquo;'+esc(r.text)+'&rdquo;</span><span class="reveal-name">&mdash; '+esc(r.playerName)+'</span></div>';
     });
+    h += noResponseRows();
     if (amHost) { h += '<button class="btn-primary" style="margin-top:16px" id="btn-next-round">Next Round \u2192</button>'; }
     else { h += '<p class="subtext" style="margin-top:16px">Waiting for host to start next round...</p>'; }
   }
@@ -420,7 +472,10 @@ function render() {
         h += '<div class="reveal-row"><span class="reveal-text">&ldquo;'+esc(r.text)+'&rdquo;</span><span class="reveal-name">&mdash; '+esc(r.playerName)+'</span></div>';
       });
     }
+    if (noResp.length && !(gs.revealedAnswers||[]).length) h += '<span class="label">Last Round Answers</span>';
+    h += noResponseRows();
     if (amHost) { h += '<button class="btn-primary" style="margin-top:16px" id="btn-play-again">Play Again</button>'; }
+    h += '<button class="btn-leave" id="btn-leave-game-over">Leave</button>';
     fireConfetti();
   }
 
@@ -434,6 +489,8 @@ function bindCardEvents() {
   if (el) el.onclick = function() { send({type:'start_game'}); };
   el = document.getElementById('btn-leave');
   if (el) el.onclick = function() { send({type:'leave_lobby'}); };
+  el = document.getElementById('btn-leave-game-over');
+  if (el) el.onclick = leaveGame;
   document.querySelectorAll('[data-kick]').forEach(function(btn) {
     btn.onclick = function() { send({type:'kick_player', playerId: btn.getAttribute('data-kick')}); };
   });
@@ -459,6 +516,11 @@ function bindCardEvents() {
   if (el) el.onblur = function() {
     var v = parseInt(el.value);
     if (v > 0 && v <= 100) send({type:'update_settings', targetScore: v});
+  };
+  var rt = document.getElementById('response-time');
+  if (rt) rt.onblur = function() {
+    var v = parseInt(rt.value);
+    if (!isNaN(v) && v >= 0 && v <= 600) send({type:'update_settings', responseTime: v});
   };
   document.querySelectorAll('[data-fav]').forEach(function(btn) {
     btn.onclick = function() {
@@ -513,6 +575,7 @@ document.addEventListener('DOMContentLoaded', function() {
     send({type:'join_lobby', name: name, code: code});
   });
   document.getElementById('btn-scoreboard').addEventListener('click', showScoreboard);
+  document.getElementById('btn-leave-game').addEventListener('click', leaveGame);
   document.getElementById('btn-back-score').addEventListener('click', hideScoreboard);
 });
 </script>
